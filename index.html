@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Steel.dev Live Remote Browser</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; background: #121214; color: #e1e1e6; }
+    #navbar { display: flex; background: #202024; padding: 15px; gap: 12px; align-items: center; border-bottom: 2px solid #29292e; }
+    #navbar label { font-size: 13px; font-weight: bold; color: #8d8d99; letter-spacing: 0.5px; }
+    input { flex: 1; padding: 10px 14px; font-size: 14px; background: #121214; border: 1px solid #323238; color: #fff; border-radius: 6px; outline: none; }
+    input:focus { border-color: #00875f; }
+    button { padding: 10px 24px; background: #00875f; color: white; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.2s; }
+    button:hover { background: #015f43; }
+    button:disabled { background: #555; cursor: not-allowed; }
+    #viewport { flex-grow: 1; display: flex; justify-content: center; align-items: center; background: #29292e; overflow: auto; padding: 20px; }
+    #screen-buffer { background: #fff; box-shadow: 0 20px 40px rgba(0,0,0,0.6); max-width: 100%; display: block; border-radius: 4px; }
+    #status-bar { padding: 8px 15px; background: #121214; font-size: 12px; color: #8d8d99; font-family: monospace; border-top: 1px solid #29292e; }
+  </style>
+</head>
+<body>
+
+  <div id="navbar">
+    <label>STEEL.DEV SANDBOX URL:</label>
+    <input type="text" id="url-target" placeholder="Enter target page address... (e.g., https://ycombinator.com)" value="https://example.com">
+    <button id="btn-connect" onclick="requestSteelRender()">Run Node</button>
+  </div>
+
+  <div id="viewport">
+    <img id="screen-buffer" alt="Isolated Canvas Output" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" />
+  </div>
+
+  <div id="status-bar" id="log-text">Status: Ready. Waiting to launch secure cloud container instance...</div>
+
+  <script>
+    // CRITICAL: Replace this text with your secret API Key from Steel.dev dashboard!
+    const STEEL_API_KEY = "YOUR_STEEL_API_KEY"; 
+
+    const screenDisplay = document.getElementById('screen-buffer');
+    const logText = document.getElementById('log-text');
+    const actionBtn = document.getElementById('btn-connect');
+
+    async function requestSteelRender() {
+      let target = document.getElementById('url-target').value.trim();
+      if(!target) return alert("Please specify a valid address link.");
+
+      if (!target.startsWith('http://') && !target.startsWith('https://')) {
+        target = 'https://' + target;
+      }
+
+      logText.innerText = "Status: Instantiating Steel Cloud secure container allocation...";
+      actionBtn.disabled = true;
+      actionBtn.innerText = "Processing...";
+
+      try {
+        // 1. Tell Steel.dev to create a fresh on-demand cloud browser
+        const sessionRes = await fetch("https://api.steel.dev/v1/sessions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${STEEL_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ useProxy: true, solveCaptchas: true })
+        });
+
+        if(!sessionRes.ok) throw new Error(`Session Init Failed: ${await sessionRes.text()}`);
+        const sessionData = await sessionRes.json();
+        const sessionId = sessionData.id;
+
+        logText.innerText = `Status: Session active (${sessionId}). Directing browser navigation to target...`;
+
+        // 2. Instruct the browser to load the target URL and extract a real jpeg screen screenshot
+        const screenshotRes = await fetch(`https://steel.dev{sessionId}/screenshot`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${STEEL_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ url: target })
+        });
+
+        if(!screenshotRes.ok) throw new Error(`Screenshot Failed: ${await screenshotRes.text()}`);
+        
+        // 3. Process the binary blob image output
+        const imageBlob = await screenshotRes.blob();
+        const objectURL = URL.createObjectURL(imageBlob);
+        screenDisplay.src = objectURL;
+
+        logText.innerText = "Status: Frame buffer sync complete. Releasing remote cloud container assets...";
+
+        // 4. Release and close the cloud session container automatically to conserve your credit balance
+        await fetch(`https://steel.dev{sessionId}/release`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${STEEL_API_KEY}` }
+        });
+
+        logText.innerText = "Status: Complete. Standby for next instruction.";
+
+      } catch (err) {
+        logText.innerText = `Status: System Error -> ${err.message}`;
+        console.error(err);
+      } finally {
+        actionBtn.disabled = false;
+        actionBtn.innerText = "Run Node";
+      }
+    }
+  </script>
+</body>
+</html>
